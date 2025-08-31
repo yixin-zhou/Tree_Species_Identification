@@ -3,7 +3,7 @@ import os
 from tqdm import tqdm
 import calendar
 import json
-# from scripts.s1_preprocess.s1_ard import preprocess_s1
+from scripts.s1_preprocess.s1_ard import preprocess_s1
 
 S2_BANDS = ['B2', 'B3', 'B4', 'B8',  # 10m
             'B5', 'B6', 'B7', 'B8A', 'B11', 'B12']  # 20m
@@ -99,30 +99,30 @@ def exportSentinel2(asset_id, year, exp_scale=10, exp_folder='gee_export_Sentine
         image_num = dataset.size().getInfo()
         print(f"For {asset_name}, find {image_num} available images in {calendar.month_name[month]}")
 
-        # if image_num == 0:
-        #     raise ValueError(
-        #         f"There is no available Sentinel-2 images for {asset_name} in {calendar.month_name[month]}.")
+        if image_num == 0:
+            raise ValueError(
+                f"There is no available Sentinel-2 images for {asset_name} in {calendar.month_name[month]}.")
 
-        # monthly_image = generate_monthly_composition(dataset).select(target_bands)
-        # resampled_monthly_image = monthly_image.reproject(
-        #     crs=ref_crs,
-        #     scale=exp_scale
-        # )
-        #
-        # task = ee.batch.Export.image.toDrive(
-        #     image=resampled_monthly_image,
-        #     description=f'Sentinel-2 of {asset_name} on {calendar.month_name[month]}',
-        #     fileNamePrefix=f'{asset_name}_S2_{year}_{month}',
-        #     folder=exp_folder,
-        #     scale=exp_scale,
-        #     crs=ref_crs,
-        #     region=aoi_rect,
-        #     maxPixels=maxPixels,
-        #     fileFormat='GeoTIFF',
-        #     formatOptions={'cloudOptimized': True}
-        # )
+        monthly_image = generate_monthly_composition(dataset).select(target_bands)
+        resampled_monthly_image = monthly_image.reproject(
+            crs=ref_crs,
+            scale=exp_scale
+        )
 
-        # task.start()
+        task = ee.batch.Export.image.toDrive(
+            image=resampled_monthly_image,
+            description=f'Sentinel-2 of {asset_name} on {calendar.month_name[month]}',
+            fileNamePrefix=f'{asset_name}_S2_{year}_{month}',
+            folder=exp_folder,
+            scale=exp_scale,
+            crs=ref_crs,
+            region=aoi_rect,
+            maxPixels=maxPixels,
+            fileFormat='GeoTIFF',
+            formatOptions={'cloudOptimized': True}
+        )
+
+        task.start()
 
 
 def export_Sentinel1(asset_id, year, exp_folder='gee_export_Sentinel1', maxPixels=1e13,
@@ -145,6 +145,20 @@ def export_Sentinel1(asset_id, year, exp_folder='gee_export_Sentinel1', maxPixel
         s1_collections = preprocess_s1(params)
 
 
+def exportClimateData(asset_id):
+    img = ee.Image(asset_id)
+    asset_name = os.path.basename(asset_id)
+    ref_proj = img.projection()
+    aoi_rect = img.geometry().bounds(proj=ref_proj, maxError=1)
+
+
+
+
+
+
+
+
+
 
 
 if __name__ == '__main__':
@@ -158,7 +172,7 @@ if __name__ == '__main__':
 
     for asset in tqdm(assets_list, desc=f'Downloading Satellite Embedding Dataset V1 and Sentinel-2'):
         year = int(asset['name'].split('/')[-1][:4])
-        # year = year + 1 if year == 2017 else year
+        Sentinel2_year = year + 1 if year == 2017 else year
         # exportSatEmbed(asset_id=asset['name'], year=year)
-        exportSentinel2(asset_id=asset['name'], year=year)
+        # exportSentinel2(asset_id=asset['name'], year=Sentinel2_year)
         # export_Sentinel1(asset_id=asset['name'], year=year)
