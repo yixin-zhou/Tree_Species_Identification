@@ -3,10 +3,10 @@ import rasterio
 from pathlib import Path
 from shapely.geometry import box, Point
 import random
-from rasterio.mask import mask
 from rasterio import CRS
 from rasterio.features import rasterize
 from rasterio.windows import Window
+from tqdm import tqdm
 
 
 PATCH_SIZE_PIX = 600
@@ -73,51 +73,58 @@ def rasterize_shp_label(labels_gdf: gpd.GeoDataFrame, out_meta: dict, output, ba
     with rasterio.open(output, 'w', **mask_meta) as dst:
         dst.write(mask_image, 1)
 
-PATCH_SIZE_PIX = 600
+if __name__ == '__main__':
 
-swiss_raster_root = Path('data')
-anno_shp_path = 'data/TreeAI_Swiss/annotations_shapefile/Data_Swiss_NDVI_XY_50buf_up_28782_LF_MB_ZX_27790spDead.shp'
-anno_df = gpd.read_file(anno_shp_path)
+    PATCH_SIZE_PIX = 600
 
-anno_df = anno_df.explode(ignore_index=True)  # Explode MUTIPOLYGON to POLYGON
-anno_df['centroid'] = anno_df.geometry.centroid
+    swiss_raster_root = Path('data')
+    anno_shp_path = 'data/TreeAI_Swiss/annotations_shapefile/Data_Swiss_NDVI_XY_50buf_up_28782_LF_MB_ZX_27790spDead.shp'
+    anno_df = gpd.read_file(anno_shp_path)
 
-anno_crs = anno_df.crs
+    anno_df = anno_df.explode(ignore_index=True)  # Explode MUTIPOLYGON to POLYGON
+    anno_df['centroid'] = anno_df.geometry.centroid
 
-tiff_counts = anno_df['Tiff'].value_counts()
-anno_df['covered'] = 0
+    anno_crs = anno_df.crs
 
-patches_save_dir = Path("data/test")
-for tiff_name, counts in tiff_counts.items():
-    if tiff_name != '20220717_0737_12501_30_0.tif':
-        continue
+    tiff_counts = anno_df['Tiff'].value_counts()
+    anno_df['covered'] = 0
+    tiff_num = len(tiff_counts)
 
-    anno_within = anno_df[anno_df['Tiff'] == tiff_name].copy()
-    base_raster_path = swiss_raster_root / tiff_name
-    with rasterio.open(base_raster_path) as base_img:
-        pixel_size_x, pixel_size_y = base_img.res
-        assert pixel_size_x == pixel_size_y, "The resolution of X and Y should be the same."
+    patches_save_dir = Path("data/test")
+    for tiff_name, counts in tqdm(tiff_counts.items(), desc="Clipping images to patches", total=tiff_num):
+        if tiff_name != '20220717_0737_12501_30_0.tif':
+            continue
 
-        samples_num = []
-        iter = 0
-        while len(anno_within[(anno_within['covered'] == 0)]):
-            polyg = anno_within[
-                (anno_within['covered'] == 0)].sample()  # Randomly select one polygon annotations as the center
-            center_pt = polyg.iloc[0]['centroid']
-            search_box = create_search_box(center_point=center_pt,
-                                           pixel_size=pixel_size_x,
-                                           patch_size_pix=PATCH_SIZE_PIX)
-            condition = anno_within.within(search_box)
-            samples = anno_within[condition]
-            anno_within.loc[condition, 'covered'] = 1
+        anno_within = anno_df[anno_df['Tiff'] == tiff_name].copy()
+        base_raster_path = swiss_raster_root / tiff_name
+        with rasterio.open(base_raster_path) as base_img:
+            pixel_size_x, pixel_size_y = base_img.res
+            assert pixel_size_x == pixel_size_y, "The resolution of X and Y should be the same."
 
-            patch_img_output = patches_save_dir / ('images/' + Path(tiff_name).stem + f'_{iter}.tif')
-            patch_label_output = patches_save_dir / ('masks/' + Path(tiff_name).stem + f'_{iter}.tif')
-            out_mata = clip_raster(base_img, search_box, base_img.crs, output=patch_img_output)
-            rasterize_shp_label(anno_within, out_meta=out_mata, output=patch_label_output)
-            iter += 1
-            # left_samples_num = len(anno_within[(anno_within['covered'] == 0)])
-            # samples_num.append(len(samples))
-            # print(f'Iteration {iter}, update {len(samples)} samples, {left_samples_num} samples left')
+            samples_num = []
+            iter = 0
+            while len(anno_within[(anno_within['covered'] == 0)]):
+                polyg = anno_within[
+                    (anno_within['covered'] == 0)].sample()  # Randomly select one polygon annotations as the center
+                center_pt = polyg.iloc[0]['centroid']
+                search_box = create_search_box(center_point=center_pt,
+                                               pixel_size=pixel_size_x,
+                                               patch_size_pix=PATCH_SIZE_PIX)
+                condition = anno_within.within(search_box)
+                samples = anno_within[condition]
+                indices_to_update = anno_within[condition].index
 
-a = 2
+                if len(indices_to_update) > 0:
+                    anno_within.loc[condition, 'covered'] = 1
+                    anno_df.loc[indices_to_update, 'covered'] = 1
+
+                    patch_img_output = patches_save_dir / ('images/' + Path(tiff_name).stem + f'_{iter}.tif')
+                    patch_label_output = patches_save_dir / ('masks/' + Path(tiff_name).stem + f'_{iter}.tif')
+
+                    out_mata = clip_raster(base_img, search_box, base_img.crs, output=patch_img_output)
+                    rasterize_shp_label(samples, out_meta=out_mata, output=patch_label_output)
+                else:
+                    print(f"There is no polygons within {tiff_name}")
+
+                iter += 1
+
