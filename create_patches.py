@@ -8,9 +8,7 @@ from rasterio.features import rasterize
 from rasterio.windows import Window
 from tqdm import tqdm
 
-#Test
-
-PATCH_SIZE_PIX = 600
+PATCH_SIZE_PIX = 500
 
 
 def create_search_box(center_point: Point, pixel_size, patch_size_pix, rand_offset_ratio=0.2):
