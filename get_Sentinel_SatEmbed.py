@@ -4,9 +4,8 @@ from tqdm import tqdm
 import calendar
 import json
 from google.cloud import storage
-# from scripts.s1_preprocess.s1_ard import preprocess_s1
-
-
+from scripts.s1_preprocess.s1_ard import preprocess_s1
+from scripts.s1_preprocess.helper import lin_to_db
 
 PROJECT_NAME = 'treeai-470815'
 BUCKET_NAME = 'treeai_data'
@@ -17,6 +16,19 @@ worldclim_scale_factor = [0.1, 0.1, 1, 0.01, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
 # Initialize the Earth Engine module and register this code in project 'TreeAI'
 ee.Authenticate()
 ee.Initialize(project=PROJECT_NAME)
+
+
+class FindExportGEEProducts:
+    def __init__(self, asset_uri):
+        self.asset_uri = asset_uri
+
+
+
+def gee_export(image:ee.Image, desc, bucket_name, fileNamePrefix, region, crs, scale, maxPixels):
+
+
+
+
 
 
 
@@ -132,12 +144,11 @@ def exportSentinel2(asset_id, year, exp_scale=10, exp_folder='gee_export_Sentine
         task.start()
 
 
-def export_Sentinel1(asset_id, year, exp_folder='gee_export_Sentinel1', maxPixels=1e13,
-                     params_json='scripts/s1_preprocess/s1_preprocess_params.json'):
-    img = ee.Image(asset_id)
-    asset_name = os.path.basename(asset_id)
+def export_Sentinel1(asset_uri, year, exp_folder='gee_export_Sentinel1', maxPixels=1e13, exp_scale=10,
+                     params_json='scripts/s1_preprocess/s1_preprocess_params.json', bucket_name=BUCKET_NAME):
+    img = ee.Image.loadGeoTIFF(asset_uri)
+    asset_name = os.path.basename(asset_uri)
 
-    # Get projection information of src UAV image
     ref_proj = img.projection()
     ref_crs = ref_proj.crs()
     aoi_rect = img.geometry().bounds(proj=ref_proj, maxError=1)
@@ -149,7 +160,28 @@ def export_Sentinel1(asset_id, year, exp_folder='gee_export_Sentinel1', maxPixel
                                            start_date=start_date,
                                            end_date=end_date,
                                            roi=aoi_rect)
-        # s1_collections = preprocess_s1(params)
+        s1_collections = preprocess_s1(params)
+        if s1_collections.size().getInfo():
+            monthly_s1 = s1_collections.mean()
+            monthly_s1_db = lin_to_db(monthly_s1).select(['VV', 'VH'])
+            reproject_s1 = monthly_s1_db.reproject(crs=ref_crs, scale=exp_scale)
+
+            task = ee.batch.Export.image.toCloudStorage(
+                image=reproject_s1,
+                description=f'Sentinel-1 of {asset_name} on {calendar.month_name[month]}',
+                bucket=bucket_name,
+                fileNamePrefix=f'{exp_folder}/{asset_name}_S1_{year}_{month}',
+                region=aoi_rect,
+                scale=exp_scale,
+                crs=ref_crs,
+                maxPixels=maxPixels,
+                fileFormat='GeoTIFF',
+                formatOptions={'cloudOptimized': True}
+            )
+            task.start()
+        else:
+            raise ValueError(f"There is no available Sentinel-1 images for {asset_name} in {year}")
+
 
 
 def exportClimateData(asset_uri, save_path, band_scale_factor=worldclim_scale_factor):
@@ -190,14 +222,10 @@ if __name__ == '__main__':
     # assets_list = ee.data.listAssets(gee_proj_root)['assets']
     print("Begin exporting Sentinel-1, Sentinel-2, Satellite Embedding and WorldClim data.")
     for blob in tqdm(raster_blobs, desc="Exporting data"):
+        year = int(blob.name.split('/')[-1][:4])
         gcs_uri = f'gs://{blob.bucket.name}/{blob.name}'
+
         exportClimateData(asset_uri=gcs_uri, save_path=None)
-
-
-    # for asset in tqdm(assets_list, des c=f'Downloading Satellite Embedding Dataset V1 and Sentinel-2'):
-    #     year = int(asset['name'].split('/')[-1][:4])
-    #     Sentinel2_year = year + 1 if year == 2017 else year
-    #     exportSatEmbed(asset_id=asset['name'], year=year)
-    #     exportSentinel2(asset_id=asset['name'], year=Sentinel2_year)
-    #     export_Sentinel1(asset_id=asset['name'], year=year)
-    #     exportClimateData(asset_id=asset['name'], save_path=None)
+        export_Sentinel1(asset_uri=gcs_uri, year=year)
+        # exportSentinel2(asset_id=asset['name'], year=Sentinel2_year)
+        # exportSatEmbed(asset_id=asset['name'], year=year)

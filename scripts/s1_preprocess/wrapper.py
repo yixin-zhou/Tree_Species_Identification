@@ -9,10 +9,10 @@ Description: A wrapper function to derive the Sentinel-1 ARD
 
 
 import ee
-import border_noise_correction as bnc
-import speckle_filter as sf
-import terrain_flattening as trf
-import helper
+from . import border_noise_correction as bnc
+from . import speckle_filter as sf
+from . import terrain_flattening as trf
+from . import helper
 
 ee.Initialize()
 
@@ -60,8 +60,8 @@ def s1_preproc(params):
     STOP_DATE = params['STOP_DATE']
     ROI = params['ROI']
     CLIP_TO_ROI = params['CLIP_TO_ROI']
-    SAVE_ASSET = params['SAVE_ASSET']
-    ASSET_ID = params['ASSET_ID']
+    # SAVE_ASSET = params['SAVE_ASSET']
+    # ASSET_ID = params['ASSET_ID']
 
     ###########################################
     # 0. CHECK PARAMETERS
@@ -153,7 +153,7 @@ def s1_preproc(params):
     elif (POLARIZATION == 'VVVH'):
         s1 = s1.select(['VV', 'VH', 'angle'])
         
-    print('Number of images in collection: ', s1.size().getInfo())
+    # print('Number of images in collection: ', s1.size().getInfo())
 
     ###########################################
     # 2. ADDITIONAL BORDER NOISE CORRECTION
@@ -161,7 +161,7 @@ def s1_preproc(params):
 
     if (APPLY_BORDER_NOISE_CORRECTION):
         s1_1 = s1.map(bnc.f_mask_edges)
-        print('Additional border noise correction is completed')
+        # print('Additional border noise correction is completed')
     else:
         s1_1 = s1
     ########################
@@ -171,10 +171,10 @@ def s1_preproc(params):
     if (APPLY_SPECKLE_FILTERING):
         if (SPECKLE_FILTER_FRAMEWORK == 'MONO'):
             s1_1 = ee.ImageCollection(sf.MonoTemporal_Filter(s1_1, SPECKLE_FILTER_KERNEL_SIZE, SPECKLE_FILTER))
-            print('Mono-temporal speckle filtering is completed')
+            # print('Mono-temporal speckle filtering is completed')
         else:
             s1_1 = ee.ImageCollection(sf.MultiTemporal_Filter(s1_1, SPECKLE_FILTER_KERNEL_SIZE, SPECKLE_FILTER, SPECKLE_FILTER_NR_OF_IMAGES))
-            print('Multi-temporal speckle filtering is completed')
+            # print('Multi-temporal speckle filtering is completed')
 
     ########################
     # 4. TERRAIN CORRECTION
@@ -185,7 +185,7 @@ def s1_preproc(params):
                                     ,TERRAIN_FLATTENING_MODEL
                                         ,DEM
                                                 ,TERRAIN_FLATTENING_ADDITIONAL_LAYOVER_SHADOW_BUFFER))
-        print('Radiometric terrain normalization is completed')
+        # print('Radiometric terrain normalization is completed')
 
     ########################
     # 5. OUTPUT
@@ -200,24 +200,24 @@ def s1_preproc(params):
         s1_1 = s1_1.map(lambda image: image.clip(ROI))
         
         
-    if (SAVE_ASSET): 
-            
-        size = s1_1.size().getInfo()
-        imlist = s1_1.toList(size)
-        for idx in range(0, size):
-            img = imlist.get(idx)
-            img = ee.Image(img)
-            name = str(img.id().getInfo())
-            #name = str(idx)
-            description = name           
-            assetId = ASSET_ID+'/'+name
-
-            task = ee.batch.Export.image.toAsset(image=img,
-                                                 assetId=assetId,
-                                                 description=description,
-                                                 region=s1_1.geometry(),
-                                                 scale=10,
-                                                 maxPixels=1e13)
-            task.start()
-            print('Exporting {} to {}'.format(name, assetId))
+    # if (SAVE_ASSET):
+    #
+    #     size = s1_1.size().getInfo()
+    #     imlist = s1_1.toList(size)
+    #     for idx in range(0, size):
+    #         img = imlist.get(idx)
+    #         img = ee.Image(img)
+    #         name = str(img.id().getInfo())
+    #         #name = str(idx)
+    #         description = name
+    #         assetId = ASSET_ID+'/'+name
+    #
+    #         task = ee.batch.Export.image.toAsset(image=img,
+    #                                              assetId=assetId,
+    #                                              description=description,
+    #                                              region=s1_1.geometry(),
+    #                                              scale=10,
+    #                                              maxPixels=1e13)
+    #         task.start()
+    #         print('Exporting {} to {}'.format(name, assetId))
     return s1_1
