@@ -1,2 +1,5 @@
 2025-09-04 14:58:35,403 - INFO - MainProcess - This computer has 24 CPU cores.
 2025-09-04 14:58:36,170 - INFO - MainProcess - Ready to process 1119 Tiff files...
+2025-09-04 15:35:43,652 - ERROR - MainProcess - Failed to process file '20180701_1150_12504_0_31_32.tif': X and Y resolutions do not match (0.1 != 0.09999999999999763). Skipping this file.
+2025-09-04 15:40:41,007 - ERROR - MainProcess - Failed to process file '20180626_1335_12504_0_4_0_5_0_6.tif': X and Y resolutions do not match (0.1 != 0.10000000000000224). Skipping this file.
+2025-09-04 15:46:25,142 - INFO - MainProcess - Jobs Done!
