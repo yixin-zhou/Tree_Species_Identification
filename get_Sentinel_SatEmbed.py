@@ -18,13 +18,13 @@ ee.Authenticate()
 ee.Initialize(project=PROJECT_NAME)
 
 
-class FindExportGEEProducts:
-    def __init__(self, asset_uri):
-        self.asset_uri = asset_uri
+# class FindExportGEEProducts:
+#     def __init__(self, asset_uri):
+#         self.asset_uri = asset_uri
 
 
 
-def gee_export(image:ee.Image, desc, bucket_name, fileNamePrefix, region, crs, scale, maxPixels):
+# def gee_export(image:ee.Image, desc, bucket_name, fileNamePrefix, region, crs, scale, maxPixels):
 
 
 
@@ -222,10 +222,12 @@ if __name__ == '__main__':
     # assets_list = ee.data.listAssets(gee_proj_root)['assets']
     print("Begin exporting Sentinel-1, Sentinel-2, Satellite Embedding and WorldClim data.")
     for blob in tqdm(raster_blobs, desc="Exporting data"):
-        year = int(blob.name.split('/')[-1][:4])
+        # year = int(blob.name.split('/')[-1][:4])
         gcs_uri = f'gs://{blob.bucket.name}/{blob.name}'
 
-        exportClimateData(asset_uri=gcs_uri, save_path=None)
-        export_Sentinel1(asset_uri=gcs_uri, year=year)
+        img = ee.Image.loadGeoTIFF(gcs_uri)
+
+        # exportClimateData(asset_uri=gcs_uri, save_path=None)
+        # export_Sentinel1(asset_uri=gcs_uri, year=year)
         # exportSentinel2(asset_id=asset['name'], year=Sentinel2_year)
         # exportSatEmbed(asset_id=asset['name'], year=year)
