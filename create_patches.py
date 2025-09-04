@@ -1,3 +1,4 @@
+import os
 import geopandas as gpd
 import rasterio
 from pathlib import Path
@@ -7,8 +8,23 @@ from rasterio import CRS
 from rasterio.features import rasterize
 from rasterio.windows import Window
 from tqdm import tqdm
+import logging
+import concurrent.futures
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(processName)s - %(message)s',
+    filename='runs/create_patch_log.txt',
+    filemode='w'
+)
+
 
 PATCH_SIZE_PIX = 500
+MAX_ITER = 1000
+MAX_WORKERS = 2
+SWISS_RASTER_ROOT = Path('X:/Dead/raster/01_switzerland')
+PATCH_SAVE_DIR = Path("data")
+ANNO_SHP_PATH = 'data/anno_shp/Data_Swiss_NDVI_XY_50buf_up_28782_LF_MB_ZX_27790spDead.shp'
 
 
 def create_search_box(center_point: Point, pixel_size, patch_size_pix, rand_offset_ratio=0.2):
@@ -72,57 +88,81 @@ def rasterize_shp_label(labels_gdf: gpd.GeoDataFrame, out_meta: dict, output, ba
     with rasterio.open(output, 'w', **mask_meta) as dst:
         dst.write(mask_image, 1)
 
-if __name__ == '__main__':
 
-    PATCH_SIZE_PIX = 600
+def create_patch_by_tif(tiff_name, anno_group, swiss_raster_root=SWISS_RASTER_ROOT,
+                        patch_save_dir=PATCH_SAVE_DIR, max_iter=MAX_ITER):
+    try:
+        anno_tiff = anno_group.copy()
+        anno_tiff['covered'] = 0
 
-    swiss_raster_root = Path('data')
-    anno_shp_path = 'data/TreeAI_Swiss/annotations_shapefile/Data_Swiss_NDVI_XY_50buf_up_28782_LF_MB_ZX_27790spDead.shp'
-    anno_df = gpd.read_file(anno_shp_path)
-
-    anno_df = anno_df.explode(ignore_index=True)  # Explode MUTIPOLYGON to POLYGON
-    anno_df['centroid'] = anno_df.geometry.centroid
-
-    anno_crs = anno_df.crs
-
-    tiff_counts = anno_df['Tiff'].value_counts()
-    anno_df['covered'] = 0
-    tiff_num = len(tiff_counts)
-
-    patches_save_dir = Path("data/test")
-    for tiff_name, counts in tqdm(tiff_counts.items(), desc="Clipping images to patches", total=tiff_num):
-        if tiff_name != '20220717_0737_12501_30_0.tif':
-            continue
-
-        anno_within = anno_df[anno_df['Tiff'] == tiff_name].copy()
         base_raster_path = swiss_raster_root / tiff_name
+        if not base_raster_path.exists():
+            logging.warning(f"Tiff file not found: {base_raster_path}")
+            return
+
         with rasterio.open(base_raster_path) as base_img:
             pixel_size_x, pixel_size_y = base_img.res
-            assert pixel_size_x == pixel_size_y, "The resolution of X and Y should be the same."
 
-            samples_num = []
+            if pixel_size_x != pixel_size_y:
+                logging.error(f"Failed to process file '{tiff_name}': X and Y resolutions do not match "
+                f"({pixel_size_x} != {pixel_size_y}). Skipping this file.")
+                return
+
             iter = 0
-            while len(anno_within[(anno_within['covered'] == 0)]):
-                polyg = anno_within[
-                    (anno_within['covered'] == 0)].sample()  # Randomly select one polygon annotations as the center
+            while len(anno_tiff[(anno_tiff['covered'] == 0)]):
+                polyg = anno_tiff[
+                    (anno_tiff['covered'] == 0)].sample()  # Randomly select one polygon annotations as the center
                 center_pt = polyg.iloc[0]['centroid']
                 search_box = create_search_box(center_point=center_pt,
-                                               pixel_size=pixel_size_x,
-                                               patch_size_pix=PATCH_SIZE_PIX)
-                condition = anno_within.within(search_box)
-                samples = anno_within[condition]
-                indices_to_update = anno_within[condition].index
+                                            pixel_size=pixel_size_x,
+                                            patch_size_pix=PATCH_SIZE_PIX)
 
-                if len(indices_to_update) > 0:
-                    anno_within.loc[condition, 'covered'] = 1
-                    anno_df.loc[indices_to_update, 'covered'] = 1
+                condition = anno_tiff.within(search_box)
+                samples = anno_tiff[condition]
+                # indices_to_update = anno_within[condition].index
+                if not samples.empty:
+                    anno_tiff.loc[condition, 'covered'] = 1
 
-                    patch_img_output = patches_save_dir / ('images/' + Path(tiff_name).stem + f'_{iter}.tif')
-                    patch_label_output = patches_save_dir / ('masks/' + Path(tiff_name).stem + f'_{iter}.tif')
+                    patch_img_output = patch_save_dir / (f'images/{Path(tiff_name).stem}/' + f'{iter}.tif')
+                    patch_label_output = patch_save_dir / (f'masks/{Path(tiff_name).stem}/' + f'{iter}.tif')
 
                     out_mata = clip_raster(base_img, search_box, base_img.crs, output=patch_img_output)
                     rasterize_shp_label(samples, out_meta=out_mata, output=patch_label_output)
                 else:
-                    print(f"There is no polygons within {tiff_name}")
+                    logging.warning(f"For {tiff_name}, a search box was created with no polygons inside.")
 
-                iter += 1
+                if iter < max_iter:
+                    iter += 1
+                else:
+                    logging.info(f"For {tiff_name}, iteration has reached maximum number-({max_iter}) !")
+                    break
+    
+    except Exception as e:
+        logging.error(f"Prolem arose when processing '{tiff_name}': {e}")
+
+
+def process_tiff_wrapper(args):
+    tiff_name, anno_group = args
+    create_patch_by_tif(tiff_name, anno_group)
+
+
+if __name__ == '__main__':
+    core_count = os.cpu_count()
+    logging.info(f"This computer has {core_count} CPU cores.")
+
+    anno_df = gpd.read_file(ANNO_SHP_PATH)
+    anno_df = anno_df.explode(ignore_index=True)  # Explode MUTIPOLYGON to POLYGON
+    anno_df['centroid'] = anno_df.geometry.centroid
+    grouped_annos = anno_df.groupby('Tiff')
+    tiff_groups = [(name, group) for name, group in grouped_annos]
+    tiff_groups_desc = sorted(tiff_groups, key=lambda item: len(item[1]), reverse=True)
+
+    logging.info(f"Ready to process {len(tiff_groups)} Tiff files...")
+
+    for tiff_group in tqdm(tiff_groups_desc, total=len(tiff_groups_desc), desc='Processing Tiff files'):
+        process_tiff_wrapper(tiff_group)
+    
+    # with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    #     list(tqdm(executor.map(process_tiff_wrapper, tiff_groups_desc), total=len(tiff_groups_desc))
+    
+    logging.info("Jobs Done!")
