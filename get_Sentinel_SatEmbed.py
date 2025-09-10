@@ -24,14 +24,6 @@ class FindExportGEEProducts:
 
 
 
-def gee_export(image:ee.Image, desc, bucket_name, fileNamePrefix, region, crs, scale, maxPixels):
-
-
-
-
-
-
-
 def load_s1_preprocess_params(params_json, start_date, end_date, roi: ee.Geometry,
                               dem=ee.Image('USGS/SRTMGL1_003')):
     with open(params_json, 'r', encoding='utf-8') as f:
@@ -113,7 +105,7 @@ def exportSentinel2(asset_id, year, exp_scale=10, exp_folder='gee_export_Sentine
         start_date = ee.Date.fromYMD(year, month, 1)
         end_date = start_date.advance(1, 'month')
 
-        dataset = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED').filterDate(start_date, end_date).filterBounds(
+        dataset = ee.ImageCollection("projects/satromo-prod/assets/col/S2_SR_HARMONIZED_SWISS").filterDate(start_date, end_date).filterBounds(
             aoi_rect)
         image_num = dataset.size().getInfo()
         print(f"For {asset_name}, find {image_num} available images in {calendar.month_name[month]}")
