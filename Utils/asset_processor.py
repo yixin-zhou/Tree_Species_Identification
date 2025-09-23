@@ -1,16 +1,15 @@
 import ee
 import os
-from tqdm import tqdm
-import calendar
+import logging
 import json
-from google.cloud import storage
-from scripts.s1_preprocess.s1_ard import preprocess_s1
-from scripts.s1_preprocess.helper import lin_to_db
+from Utils.s1_preprocess.s1_ard import preprocess_s1
+from Utils.s1_preprocess.helper import lin_to_db
 
 
 class AssetProcessor:
     def __init__(self, asset_uri: str, year: int, bucket: str, exp_folder: dict):
         self.image = ee.Image(asset_uri)
+        # self.image = ee.Image.loadGeoTIFF(asset_uri)
         self.asset_name = os.path.basename(asset_uri)
         self.year = year
 
@@ -26,7 +25,7 @@ class AssetProcessor:
         self.default_exp_folders = exp_folder
         self.default_maxPixels = 1e13
         self.default_exp_scale = 10
-        self.s1_params_json = 'scripts/s1_preprocess/s1_preprocess_params.json'
+        self.s1_params_json = 'Utils/s1_preprocess/s1_preprocess_params.json'
 
     @staticmethod
     def count_assets(parent_path):
@@ -49,51 +48,18 @@ class AssetProcessor:
         params['STOP_DATE'] = end_date
         return params
 
-    def _generate_monthly_composition(self, datasets: ee.ImageCollection):
-        BANDS_FOR_PROCESSING = self.default_s2_bands + ['SCL']
-        homogeneous_datasets = datasets.select(BANDS_FOR_PROCESSING)
 
-        def mask_s2_clouds(image):
-            scl = image.select('SCL')
-            cloud_mask = scl.eq(3).Or(scl.eq(8)).Or(scl.eq(9)).Or(scl.eq(10))
-            return image.updateMask(cloud_mask.Not())
-
-        masked_images = homogeneous_datasets.map(mask_s2_clouds)
-        monthly_composite_image = masked_images.median()
-        return monthly_composite_image
-
-    def _start_export_task(self, export_img, exp_folder, month=None, desc='', product=''):
-        if month is None:
-            filenameprefix = f'{exp_folder}/{self.asset_name}_{product}_{self.year}'
-        else:
-            filenameprefix = f'{exp_folder}/{self.asset_name}_{product}_{self.year}_{month}'
-
-        task = ee.batch.Export.image.toCloudStorage(
-            image=export_img,
-            description=desc,
-            bucket=self.default_bucket,
-            fileNamePrefix=filenameprefix,
-            region=self.aoi_rect,
-            crs=self.ref_crs,
-            scale=self.default_exp_scale,
-            maxPixels=self.default_maxPixels,
-            formatOptions={'cloudOptimized': True}
-        )
-        task.start()
-
-    def export_SatEmbed(self):
+    def generate_SatEmbed(self):
         embed = (ee.ImageCollection('GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL')
                  .filterDate(f'{self.year}-01-01', f'{self.year + 1}-01-01')
                  .filterBounds(self.aoi_rect)
                  .first()
                  .clip(self.aoi_rect))
+        return embed
 
-        self._start_export_task(export_img=embed,
-                                exp_folder=self.default_exp_folders['SatEmbed'],
-                                desc=f'Satellite embedding of {self.asset_name}',
-                                product='SatEmbed')
 
-    def export_S1(self):
+    def generate_monthly_Sentinel1(self):
+        s1_ts = []
         for month in range(1, 13):
             start_date = ee.Date.fromYMD(self.year, month, 1)
             end_date = start_date.advance(1, 'month')
@@ -106,31 +72,59 @@ class AssetProcessor:
                 monthly_s1 = s1_collections.mean()
                 monthly_s1_db = lin_to_db(monthly_s1).select(['VV', 'VH'])
                 reproject_s1 = monthly_s1_db.reproject(crs=self.ref_crs, scale=self.default_exp_scale)
-                self._start_export_task(export_img=reproject_s1,
-                                        exp_folder=self.default_exp_folders['S1'],
-                                        desc=f'Sentinel-1 of {self.asset_name} on {calendar.month_name[month]}',
-                                        product='S1')
+                s1_ts.append(reproject_s1)
             else:
-                raise ValueError(f"There is no available Sentinel-1 images for {self.asset_name} in {self.year}")
+                logging.warning(f"There is no available Sentinel-1 images for {self.asset_name} in {self.year}")
+        return s1_ts
 
-    def export_S2(self):
+    def generate_monthly_SwissEO(self):
+        def combine_pair(i):
+            i = ee.Number(i)
+            i10 = ee.Image(l10.get(i))
+            i20 = ee.Image(l20.get(i))
+            return (ee.Image.cat([
+                i10.select(['B2', 'B3', 'B4', 'B8', 'cloudAndCloudShadowMask']),
+                i20.select(['B5', 'B8A', 'B11'])
+            ]).copyProperties(i10, ['system:time_start', 'system:index']))
+
+        def upsample20mBands(img):
+            ref10 = img.select('B2').projection()
+
+            bands20_to10 = (img.select(['B5', 'B8A', 'B11'])
+                            .resample('bilinear')
+                            .reproject(ref10))
+            bands10 = img.select(['B2', 'B3', 'B4', 'B8'])
+            mask10 = img.select('cloudAndCloudShadowMask')
+            out = (ee.Image.cat([bands10, bands20_to10, mask10])
+                   .updateMask(mask10.eq(0))
+                   .copyProperties(img, img.propertyNames()))
+            return out
+
+        s2_ts = []
+
         for month in range(1, 13):
             start_date = ee.Date.fromYMD(self.year, month, 1)
             end_date = start_date.advance(1, 'month')
 
-            s2_collections = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED').filterDate(start_date,
-                                                                                          end_date).filterBounds(
-                self.aoi_rect)
-            if s2_collections.size().getInfo():
-                monthly_image = self._generate_monthly_composition(s2_collections).select(self.default_s2_bands)
-                resampled_monthly_image = monthly_image.reproject(
-                    crs=self.ref_crs,
-                    scale=self.default_exp_scale
-                )
-                self._start_export_task(export_img=resampled_monthly_image,
-                                        exp_folder=self.default_exp_folders['S2'],
-                                        desc=f'Sentinel-2 of {self.asset_name} on {calendar.month_name[month]}',
-                                        product='S2')
+            col = (ee.ImageCollection("projects/satromo-prod/assets/col/S2_SR_HARMONIZED_SWISS")
+                   .filterBounds(self.image.geometry())
+                   .filterDate(start_date, end_date))
+
+            images_10m = col.filter(ee.Filter.eq('pixel_size_meter', 10)).sort('system:time_start', True)
+            images_20m = col.filter(ee.Filter.eq('pixel_size_meter', 20)).sort('system:time_start', True)
+
+            n = images_10m.size()
+            if n.getInfo()>0:
+                l10 = images_10m.toList(n)
+                l20 = images_20m.toList(n)
+
+                merged = ee.ImageCollection(ee.List.sequence(0, n.subtract(1)).map(combine_pair))
+                merged = merged.map(upsample20mBands)
+                monthly_median = merged.select(self.default_s2_bands).median().clip(self.aoi_rect)
+                s2_ts.append(monthly_median)
+            else:
+                logging.warning(f"There is no available Sentinel-2 images for {self.asset_name} in {self.year}")
+        return s2_ts
 
     def exportClimateData(self, save_path):
         aoi_center = self.image.geometry().centroid(maxError=1)
@@ -157,3 +151,19 @@ class AssetProcessor:
             with open(save_path, "w", encoding='utf-8') as f:
                 json.dump(climate_data, f, indent=4)
 
+
+    def mergeAllSatelliteData(self):
+        sat_embed = self.generate_SatEmbed()
+        s1_ts = ee.ImageCollection(self.generate_monthly_Sentinel1())
+        s2_ts = ee.ImageCollection(self.generate_monthly_SwissEO())
+
+        # Rename the band names first, no need for Satellite Embedding data
+        return 0
+            
+
+
+
+
+    def exportAllSatelliteData(self):
+        
+        return satembed, s1_ts, s2_ts

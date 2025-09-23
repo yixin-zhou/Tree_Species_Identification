@@ -4,8 +4,8 @@ from tqdm import tqdm
 import calendar
 import json
 from google.cloud import storage
-from scripts.s1_preprocess.s1_ard import preprocess_s1
-from scripts.s1_preprocess.helper import lin_to_db
+from Utils.s1_preprocess.s1_ard import preprocess_s1
+from Utils.s1_preprocess.helper import lin_to_db
 
 PROJECT_NAME = 'treeai-470815'
 BUCKET_NAME = 'treeai_data'
