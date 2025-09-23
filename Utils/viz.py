@@ -20,7 +20,7 @@ def visualize_mask_with_bbox(mask_path, label_path, img_size=(500, 500)):
     labels = np.atleast_2d(labels)
 
     plt.figure(figsize=(10, 10))
-    plt.imshow(mask)  # 直接用一个离散色表
+    plt.imshow(mask)
     plt.axis("off")
     plt.tight_layout()
 
