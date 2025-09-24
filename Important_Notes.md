@@ -7,4 +7,6 @@
 3. The  vegetation height model comes from:
    Ginzler, C. (2021). Vegetation Height Model NFI.  National Forest Inventory (NFI).  https://www.doi.org/10.16904/1000001.1.
 
-4. 
+4. For climate data, we use CHELSA v2.1 dataset to replace WorldClim, because the former is more precise in mountainous area. Website: https://chelsa-climate.org/
+
+5. 
