@@ -35,10 +35,5 @@ def visualize_mask_with_bbox(mask_path, label_path, img_size=(500, 500)):
         plt.gca().add_patch(rect)
     plt.show()
 
-visualize_mask_with_bbox('../data/TreeAI_Swiss/masks/20170608_0930_12501_0_33/1.tif',
-                         '../data/TreeAI_Swiss/labels/20170608_0930_12501_0_33/1.txt')
-
-
-
-
-
+visualize_mask_with_bbox('data/TreeAI_Swiss/masks/20170608_0930_12501_0_33/1.tif',
+                         'data/TreeAI_Swiss/labels/20170608_0930_12501_0_33/1.txt')

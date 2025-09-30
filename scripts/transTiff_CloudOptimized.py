@@ -23,17 +23,12 @@ def to_cog(src_tif, dst_tif):
     )
 
 if __name__ == '__main__':
-    search_dir = Path("../data/test")
+    search_dir = Path("data/TreeAI_Swiss/images/")
     remove_origin = True
-
-
-    patterns = ["*.tif", "*.TIF", "*.tiff", "*.TIFF"]
-    all_tiff_files = []
-
-    for pattern in patterns:
-        all_tiff_files.extend(search_dir.rglob(pattern))
-
-    for file_path in tqdm(all_tiff_files, desc="Transferring .tif format raster files to cloud optimized ones"):
+    
+    uav_images = list(search_dir.rglob("*.tif"))
+    
+    for file_path in tqdm(uav_images, desc="Transferring .tif format raster files to cloud optimized ones"):
         cog_filename = f"{file_path.stem}_COG{file_path.suffix}"
         dst_filepath = file_path.with_name(cog_filename)
         to_cog(src_tif=str(file_path), dst_tif=dst_filepath)
