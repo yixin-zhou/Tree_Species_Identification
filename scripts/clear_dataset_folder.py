@@ -1,7 +1,7 @@
 from pathlib import Path
 import os
 
-target_folder = "data/TreeAI_Swiss/images_CO"
+target_folder = "data/TreeAI_Swiss/DSM"
 target_folder = Path(target_folder)
 
 non_tif_files = [f for f in target_folder.rglob("*") if f.is_file() and f.suffix.lower() != ".tif"]

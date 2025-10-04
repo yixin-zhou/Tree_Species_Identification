@@ -77,7 +77,7 @@ def mosaic_clip(input_rasters, clip_raster, output):
         src.close()
 
     clip(input_raster=temp_mosaic_path, clip_raster=clip_raster, output=output)
-    delete_files([pathlib.Path(temp_mosaic_path)])
+    delete_files([Path(temp_mosaic_path)])
 
 
 def delete_files(files):
