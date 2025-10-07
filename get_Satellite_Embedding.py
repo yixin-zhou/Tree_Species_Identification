@@ -1,11 +1,9 @@
 import ee
-import os
 from tqdm import tqdm
-import calendar
-import json
 from google.cloud import storage
 import time
-
+from pathlib import Path
+import rasterio
 
 PROJECT_NAME = 'treeai-470815'
 BUCKET_NAME = 'treeai_swiss'
@@ -26,7 +24,7 @@ def wait(check_internal=100):
     
 
 # Initialize the Earth Engine module and register this code in project 'TreeAI'
-ee.Authenticate()
+ee.Authenticate(force=True)
 ee.Initialize(project=PROJECT_NAME)
 
 storage_client = storage.Client()
@@ -84,3 +82,13 @@ for blob in tqdm(raster_blobs, desc='Exporting Satellite Embedding data'):
     if submitted_tasks == PARALLEL_TASKS:
         wait()
         submitted_tasks = 0
+
+# clip = True
+#
+# if clip:
+#     sateEmbed = Path('data/TreeAI_Swiss/Satellite_Embedding')
+#     sateEmbed_images = list(sateEmbed.rglob("*.tif"))
+#     for sateEmbed_image in sateEmbed_images:
+#         uav_image_path = Path(str(sateEmbed_images).
+#                               replace("Satellite_Embedding", "images"))
+#         with rasterio.open(sateEmbed_image) as src:

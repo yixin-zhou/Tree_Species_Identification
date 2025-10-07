@@ -14,7 +14,7 @@ from . import speckle_filter as sf
 from . import terrain_flattening as trf
 from . import helper
 
-ee.Initialize()
+# ee.Initialize()
 
 
 ###########################################
