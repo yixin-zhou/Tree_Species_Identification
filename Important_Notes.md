@@ -6,3 +6,4 @@
 4. For climate data, we use CHELSA v2.1 dataset to replace WorldClim, because the former is more precise in mountainous area. Website: https://chelsa-climate.org/
 5. In TreeAI_Swiss dataset, there are 9437 UAV images.
 6. The default vegetation growing season in mid-latitude Europe is from early April to mid-October.
+7. for 20180620_1332_12501_0_13_17.tif, need to clip manually, because it came cross several Sentinel patches
