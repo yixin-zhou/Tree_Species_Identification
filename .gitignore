@@ -1,5 +1,7 @@
 data/raw
 data/shapefile
-data/TreeAI_Swiss
+data/TreeAI_Swiss_60
 .idea/
 plots/
+__pycache__/
+*.pyc
