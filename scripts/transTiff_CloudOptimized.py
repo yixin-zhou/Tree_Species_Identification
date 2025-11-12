@@ -23,7 +23,7 @@ def to_cog(src_tif, dst_tif):
     )
 
 if __name__ == '__main__':
-    search_dir = Path("data/TreeAI_Swiss/images/")
+    search_dir = Path("../data/TreeAI_Swiss_60/masks/")
     remove_origin = True
     
     uav_images = list(search_dir.rglob("*.tif"))

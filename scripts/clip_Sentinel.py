@@ -1,9 +1,8 @@
 from pathlib import Path
-import numpy as np
+import geopandas as gpd
 import rasterio
 from rasterio.coords import BoundingBox
-from rasterio.warp import reproject, Resampling
-from rasterio.transform import from_bounds
+from Utils.utils import getAcquireYear
 from tqdm import tqdm
 import calendar
 import re
@@ -51,20 +50,23 @@ def find_containing_patch(tif_path: BoundingBox, patch_bounds: dict):
 
     return None
 
+ANNOTATIONS_SHP = "../data/shapefile/grid/swiss_tree_annotations_with_filtered_grid.shp"
+images_folder = Path("../data/TreeAI_Swiss_60/masks")
+patch_bounds = parse_bounds_file("GEE_patch_bound.txt")
 
-images_folder = Path("../data/TreeAI_Swiss/images")
-patch_bounds = parse_bounds_file("../data/raw/Sentinel-1/GEE_patch_bound.txt")
+anno_df = gpd.read_file(ANNOTATIONS_SHP)
+
 for image in tqdm(list(images_folder.rglob("*.tif")), desc="Reproject to UAV extent"):
     # if image.name != "20180620_1332_12501_0_13_17.tif":
     #     continue
-    capture_year = int(image.name[:4])
+    capture_year = getAcquireYear(int(image.stem), anno_df)
     for month in range(1, 13):
         try:
             sentinel_folder = Path(f"../data/raw/Sentinel-1/{capture_year}_{calendar.month_name[month]}")
             sentinel_patches = list(sentinel_folder.rglob("*.tif"))
             assert len(sentinel_patches) == 6, "There should be six sentinel patches"
 
-            save_dir = Path(str(image).replace('images', 'Sentinel-1').replace('.tif', ''))
+            save_dir = Path(str(image).replace('masks', 'Sentinel-1').replace('.tif', ''))
             save_dir.mkdir(exist_ok=True, parents=True)
             save_path = save_dir / f"{calendar.month_name[month]}.tif"
             if save_path.exists():
@@ -81,7 +83,7 @@ for image in tqdm(list(images_folder.rglob("*.tif")), desc="Reproject to UAV ext
 
             command = (
                 f"gdalwarp -overwrite -te {xmin} {ymin} {xmax} {ymax} "
-                f"-ts 5 5 "
+                f"-ts 6 6 "
                 f"-r bilinear "
                 f"-t_srs EPSG:2056 "
                 f"\"{str(sentinel_patch[0])}\" "

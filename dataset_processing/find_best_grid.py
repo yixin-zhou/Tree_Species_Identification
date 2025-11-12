@@ -10,6 +10,7 @@ from tqdm import tqdm
 def snap_floor(v, cell, origin=0.0):
     return origin + np.floor((v - origin) / cell) * cell
 
+
 def snap_ceil(v, cell, origin=0.0):
     return origin + np.ceil((v - origin) / cell) * cell
 
@@ -84,16 +85,15 @@ fishnet.to_file(out_fishnet)
 
 print(f"There are {len(fishnet)} grids left.")
 
-
 # Spatial join the anno_df and fishnet
 anno_df = anno_df.set_geometry("geometry")
-fishnet  = fishnet.set_geometry("geometry")
-fishnet  = fishnet.to_crs(anno_df.crs)
+fishnet = fishnet.set_geometry("geometry")
+fishnet = fishnet.to_crs(anno_df.crs)
 
 PREDICATE_SAMPLE_IN_GRID = "covered_by"
 samples_with_grid = gpd.sjoin(
     anno_df.reset_index(drop=True).assign(sample_id=lambda d: np.arange(len(d))),
-    fishnet[["grid_id","geometry"]],
+    fishnet[["grid_id", "geometry"]],
     how="left",
     predicate=PREDICATE_SAMPLE_IN_GRID
 ).drop(columns=["index_right"])
@@ -102,3 +102,9 @@ samples_with_grid = samples_with_grid.dropna(subset=["grid_id"]).reset_index(dro
 
 out_samples = Path(out_dir) / "swiss_tree_annotations_with_filtered_grid.shp"
 samples_with_grid.to_file(out_samples)
+
+cluster_to_grid = pd.Series(grid_to_cluster, name="cluster").groupby(level=0).first()
+counts_c = counts.join(cluster_to_grid).groupby("cluster").sum()  # 行=cluster, 列=species
+
+clusters = counts_c.index.tolist()
+species  = counts_c.columns.tolist()

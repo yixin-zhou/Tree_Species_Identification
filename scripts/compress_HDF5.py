@@ -4,9 +4,39 @@ from tqdm import tqdm
 import rasterio
 import numpy as np
 import calendar
+from PIL import Image
+
+OPTICAL_BANDS = [
+    'B2', 'B3', 'B4', 'B5', 'B6',
+    'B7', 'B8', 'B8A', 'B11', 'B12'
+]
 
 
-def load_monthly_sentinel(sentinel_folder):
+def load_monthly_sentinel2(sentinel_tif):
+    months = list(calendar.month_name[1:])
+    with rasterio.open(sentinel_tif) as src:
+        H = src.height
+        W = src.width
+        count = src.count
+        descriptions = src.descriptions
+        out = np.zeros((len(months), len(OPTICAL_BANDS), H, W), dtype=src.dtypes[0])
+
+        band_lookup = {}
+        for i, desc in enumerate(descriptions):
+            month_name, band_name = desc.split("_", 1)
+            band_lookup[(month_name, band_name)] = i + 1
+
+        for mi, month in enumerate(months):
+            for bi, band in enumerate(OPTICAL_BANDS):
+                key = (month, band)
+                band_idx = band_lookup[key]
+
+                arr = src.read(band_idx)
+                out[mi, bi, :, :] = arr
+    return out
+
+
+def load_monthly_sentinel1(sentinel_folder):
     months = list(calendar.month_name[1:])
     monthly_data = []
     for month in months:
@@ -14,7 +44,7 @@ def load_monthly_sentinel(sentinel_folder):
         with rasterio.open(tif_filepath) as f:
             monthly_data.append(f.read())
 
-    final_array = np.stack(monthly_data, axis=0)
+    final_array = np.stack(monthly_data, axis=0).astype(np.float32)
     return final_array
 
 
@@ -49,8 +79,8 @@ def load_coco_label(filepath):
     return np.array(parsed_annotations, dtype=target_dtype)
 
 
-dataset_path = Path("../data/TreeAI_Swiss")
-modalities = ['images', 'DEM', 'DSM', 'VHM', 'Sentinel-1', 'Sentinel-2',
+dataset_path = Path("../data/TreeAI_Swiss_60")
+modalities = ['images', 'images_png', 'DEM', 'DSM', 'VHM', 'Sentinel-1', 'Sentinel-2',
             'Satellite_Embedding', 'climate', 'labels', 'masks']
 
 images_folder = dataset_path / "images"
@@ -61,6 +91,11 @@ for image in tqdm(list(images_folder.rglob("*.tif")), desc="Compressing data to 
         uav_image = src.read()
         crs = src.crs
         bounds = src.bounds
+
+    # Load images in png format
+    png_path = str(image).replace('images','images_png').replace('.tif', '.png')
+    image_8bit = Image.open(png_path).convert("RGB")
+    image_8bit = np.transpose(image_8bit, (2, 0, 1))
 
     # Load DEM
     dem_path = str(image).replace('images','DEM')
@@ -83,17 +118,18 @@ for image in tqdm(list(images_folder.rglob("*.tif")), desc="Compressing data to 
         mask = np.squeeze(src.read())
 
     # Load Google Satellite Embedding v1
-    sate_embed_path = str(image).replace('images','Satellite Embedding')
+    sate_embed_path = str(image).replace('images','Satellite_Embedding')
     with rasterio.open(sate_embed_path) as src:
         sate_embed = src.read()
+    sate_embed = sate_embed.astype(np.float32)
 
     # Load Sentinel-1 Time Series
     sentinel1_folder = str(image).replace('images','Sentinel-1').replace('.tif', '')
-    s1_ts = load_monthly_sentinel(sentinel1_folder)
+    s1_ts = load_monthly_sentinel1(sentinel1_folder)
 
     # Load Sentinel-2 Time Series
-    sentinel2_folder = str(image).replace('images','Sentinel-2').replace('.tif', '')
-    s2_ts = load_monthly_sentinel(sentinel2_folder)
+    sentinel2_tif = str(image).replace('images','Sentinel-2')
+    s2_ts = load_monthly_sentinel2(sentinel2_tif)
 
     # Next move to metadata, first CHELSA climate data
     climate_path = str(image).replace('images','climate').replace('.tif', '.txt')
@@ -108,6 +144,7 @@ for image in tqdm(list(images_folder.rglob("*.tif")), desc="Compressing data to 
     Path(hdf5_filepath).parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(hdf5_filepath, "w") as hf:
         hf.create_dataset('uav_image', data=uav_image, compression='gzip')
+        hf.create_dataset('uav_image_8bit', data=image_8bit, compression='gzip')
         hf.create_dataset('dem', data=dem, compression='gzip')
         hf.create_dataset('dsm', data=dsm, compression='gzip')
         hf.create_dataset('vhm', data=vhm, compression='gzip')
