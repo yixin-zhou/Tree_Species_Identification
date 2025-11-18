@@ -1,20 +1,31 @@
+import requests
+import numpy as np
+import warnings
+import random
+import os
+import torch
 import rasterio
 from rasterio.windows import from_bounds, Window
-from rasterio.merge import merge
 from rasterio.vrt import WarpedVRT
 from rasterio.enums import Resampling
 from rasterio.transform import from_bounds as transform_from_bounds
-from rasterio.transform import array_bounds
 from rasterio.enums import ColorInterp
 from pathlib import Path
-import requests
-import os
-import pathlib
-import numpy as np
-import warnings
+
+
 warnings.filterwarnings("ignore", category=UserWarning, module="rasterio.windows")
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="rasterio.windows")
 
+
+# https://github.com/qhd1996/seed-everything
+def seed(TORCH_SEED):
+    random.seed(TORCH_SEED)
+    os.environ['PYTHONHASHSEED'] = str(TORCH_SEED)
+    np.random.seed(TORCH_SEED)
+    torch.manual_seed(TORCH_SEED)
+    torch.cuda.manual_seed_all(TORCH_SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def determine_within(in_bounds, out_bounds):
