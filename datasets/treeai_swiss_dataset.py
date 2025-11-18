@@ -7,7 +7,8 @@ import numpy as np
 
 
 class TreeAISwissDataset(Dataset):
-    def __init__(self, dataset_folder,
+    def __init__(self, 
+                 folder,
                  split,
                  image_mask=False,
                  image_normalized=True,
@@ -18,10 +19,10 @@ class TreeAISwissDataset(Dataset):
                  vhm_normalized=True,
                  sentinel_timestamp='monthly'
                  ):
-        if not Path(dataset_folder).is_dir():
-            raise FileNotFoundError(f"Dataset folder not found at: {dataset_folder}")
+        if not Path(folder).is_dir():
+            raise FileNotFoundError(f"Dataset folder not found at: {folder}")
 
-        self.dataset_folder = dataset_folder
+        self.folder = folder
 
         ALLOWED_SPLITS = {'train', 'val', 'test'}
         if split not in ALLOWED_SPLITS:
@@ -30,7 +31,7 @@ class TreeAISwissDataset(Dataset):
                 f"Must be one of {ALLOWED_SPLITS}."
             )
         self.split = split
-        self.dataset_split_folder = Path(self.dataset_folder) / split
+        self.dataset_split_folder = Path(self.folder) / split
 
         self.image_mask = image_mask
         self.s2_mask = s2_mask
@@ -163,6 +164,7 @@ class TreeAISwissDataset(Dataset):
         final_tensor['s1_ts'] = torch.from_numpy(data['s1_ts']).float()
         final_tensor['s2_ts'] = torch.from_numpy(data['s2_ts']).float()
         final_tensor['bioclim'] = torch.from_numpy(data['bioclim']).float()
+        final_tensor['labels'] = data['labels']
 
         mask_tensor = torch.from_numpy(data['mask']).long()
 

@@ -206,3 +206,13 @@ def getAcquireYear(grid_id, anno_df):
         return np.max(years)
 
 
+def get_divice() -> torch.device:
+    '''
+    Automatically determine on which device should the training script implements
+    '''
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+

@@ -1,0 +1,39 @@
+seed: 42
+
+wandb:
+  use: True
+  entity: "yixinzhou-ethz"
+  project: "Tree Species Identification"
+  name: "test run"
+  key: 78ca1f862ad9d2da640d58d1d18e1162a9358659
+
+device: "auto"
+
+data:
+  folder: "data/TreeAI_Swiss_60/"
+  image_mask: True
+  image_normalized: True
+  s1_unit: "db"
+  s2_mask: True
+  s2_fill: 0
+  vhm_compute_method: "minus"
+  vhm_vormalized: True
+  sentinel_timestamp: "monthly"
+
+train:
+  validation: True
+  batch_size: 4
+  num_workers: 4
+  max_epochs: 10
+  lr: 1e-4
+
+loss:
+  gamma: 2.0
+
+model:
+    num_classes: 12
+
+hydra:
+  run:
+    dir: logs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

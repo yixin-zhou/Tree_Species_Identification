@@ -2,5 +2,8 @@ data/shapefile
 data/TreeAI_Swiss_60
 .idea/
 plots/
+logs/
+outputs/
 __pycache__/
 *.pyc
+.DS_Store
