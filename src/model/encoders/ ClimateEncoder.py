@@ -9,11 +9,11 @@ from Utils.utils import get_divice
 
 class ClimateEncoder(nn.Module):
     def __init__(self, 
-                 H, 
-                 W,
+                 H: int=80, 
+                 W: int=80,
                  without_month=True,
-                 defalut_month=8, 
-                 embed_dim=256,
+                 defalut_month: int=8, 
+                 embed_dim: int=256,
                  return_chelsa=False,
                  frozen=True,
                 ):
@@ -60,7 +60,7 @@ class ClimateEncoder(nn.Module):
 
 
 if __name__ == '__main__':
-    model = ClimateEncoder(H=30, W=30, without_month=True)
+    model = ClimateEncoder(H=75, W=75, without_month=True)
     device = get_divice()
     model = model.to(device)
     loc = [8.550155, 47.396702]

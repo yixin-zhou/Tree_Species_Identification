@@ -1,5 +1,6 @@
 data/shapefile
 data/TreeAI_Swiss_60
+data/test_set
 .idea/
 plots/
 logs/
