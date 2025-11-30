@@ -9,8 +9,8 @@ from Utils.utils import get_divice
 
 class ClimateEncoder(nn.Module):
     def __init__(self, 
-                 H: int=80, 
-                 W: int=80,
+                 H: int=75, 
+                 W: int=75,
                  without_month=True,
                  defalut_month: int=8, 
                  embed_dim: int=256,
