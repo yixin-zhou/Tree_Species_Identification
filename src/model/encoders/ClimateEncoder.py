@@ -42,7 +42,7 @@ class ClimateEncoder(nn.Module):
             self.clim_model.eval()
 
     def forward(self, loc, month=None):
-        B = loc.size(0) # Batch size
+        B = loc.size(0)
 
         if not self.without_month:
             if month is None:

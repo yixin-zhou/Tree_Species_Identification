@@ -11,7 +11,7 @@ from omegaconf import DictConfig, OmegaConf
 from Utils.utils import seed, get_divice 
 from datasets.treeai_swiss_dataset import TreeAISwissDataset
 
-from model.MyModel import SimpleCNN
+from model.MultiModalGatedFusion import SimpleCNN
 from model.loss import FocalLoss
 
 

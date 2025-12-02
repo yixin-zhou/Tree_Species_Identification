@@ -1,3 +1,6 @@
+import pyrootutils
+root_path = pyrootutils.setup_root(__file__, indicator='.git', pythonpath=True)
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
