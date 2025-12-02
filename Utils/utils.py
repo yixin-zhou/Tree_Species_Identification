@@ -11,7 +11,7 @@ from rasterio.enums import Resampling
 from rasterio.transform import from_bounds as transform_from_bounds
 from rasterio.enums import ColorInterp
 from pathlib import Path
-
+import datetime
 
 warnings.filterwarnings("ignore", category=UserWarning, module="rasterio.windows")
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="rasterio.windows")
@@ -216,3 +216,25 @@ def get_divice() -> torch.device:
         return torch.device("mps")
     return torch.device("cpu")
 
+
+def timestamp2doy(timestamps_len, batch_size, device, year=2023):  
+    if timestamps_len == 12:
+        doys = []
+        for m in range(1, 13):
+            d = datetime.date(year, m, 15)
+            doys.append(d.timetuple().tm_yday)
+    elif timestamps_len == 4:
+        quarter_mid_months = [2, 5, 8, 11]
+        doys = []
+        for m in quarter_mid_months:
+            d = datetime.date(year, m, 15)
+            doys.append(d.timetuple().tm_yday)
+    elif timestamps_len == 1:
+        mid_date = datetime.date(year, 7, 2)
+        doys = [mid_date.timetuple().tm_yday]
+    else:
+        doys = np.linspace(1, 365, timestamps_len).tolist()
+
+    doys = torch.tensor(doys, dtype=torch.float32, device=device)
+    doys = doys.unsqueeze(0).repeat(batch_size, 1)
+    return doys

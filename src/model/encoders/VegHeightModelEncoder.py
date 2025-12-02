@@ -48,7 +48,6 @@ class VegHeightModelEncoder(nn.Module):
         
         return feature_75
 
-
     
 if __name__ == '__main__':
     device = get_divice()
