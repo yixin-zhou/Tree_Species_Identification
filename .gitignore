@@ -2,9 +2,12 @@ data/shapefile
 data/TreeAI_Swiss_60
 data/TreeAI_Swiss
 data/test_set
+data/SelvaBox
 .idea/
-plots/
+results/
 logs/
+wandb/
+src/logs/
 outputs/
 __pycache__/
 *.pyc

@@ -2,20 +2,20 @@ import pyrootutils
 root_path = pyrootutils.setup_root(__file__, indicator='.git', pythonpath=True)
 
 import torch
-import pyrootutils
 import logging
 import hydra
+from hydra.utils import to_absolute_path
 import wandb
 from torch.utils.data import DataLoader, ConcatDataset
 from omegaconf import DictConfig, OmegaConf
 from Utils.utils import seed, get_divice 
 from datasets.treeai_swiss_dataset import TreeAISwissDataset
 
-from model.MultiModalGatedFusion import SimpleCNN
-from model.loss import FocalLoss
+from model.TreeDetector import TreeDetector
+from model.loss import FCOSLoss
 
 
-# Set the basic config for looger
+# Set the basic config for logger
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(levelname)s] %(message)s",
@@ -27,6 +27,19 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 logger.info(f"The root path of this project is {root_path}")
+
+
+def detection_collate_fn(batch):
+    input_list = [item[0] for item in batch]
+    target_list = [item[1] for item in batch]
+    
+    batch_input = {}
+    for key in input_list[0].keys():
+        batch_input[key] = torch.stack([d[key] for d in input_list], dim=0)
+        
+    batch_target = target_list
+    
+    return batch_input, batch_target
 
 
 # Main train function
@@ -43,7 +56,7 @@ def main(cfg: DictConfig):
 
         wandb.login(key=cfg.wandb.key)
         wandb.init(
-            entity=cfg.wandb.entity,
+            entity=cfg.wandb.get("entity", None),
             project=cfg.wandb.project,
             name=final_run_name,
             config=OmegaConf.to_container(cfg, resolve=True),
@@ -52,19 +65,18 @@ def main(cfg: DictConfig):
         logger.info(f"Successfully Log in Wandb: {cfg.wandb.entity}-{cfg.wandb.project}-{final_run_name}")
 
     logger.info("Load config from configs/config.yaml")
-    logger.info(cfg)
 
-    seed(cfg.seed) # Fix the seed to ensure reproductivity
+    seed(cfg.seed)
     
     device = get_divice() if cfg.device == "auto" else torch.device(cfg.device)
-    
-    # Load configs of dataset
+
     dataset_kwargs = OmegaConf.to_container(cfg.data.dataset, resolve=True)
+    if "folder" in dataset_kwargs:
+        dataset_kwargs["folder"] = to_absolute_path(dataset_kwargs["folder"])
 
     train_dataset = TreeAISwissDataset(split="train", **dataset_kwargs)
     val_dataset   = TreeAISwissDataset(split="val", **dataset_kwargs)
 
-    # Decide whether to use validation
     if cfg.train.validation:
         final_train_dataset = train_dataset
         final_val_dataset = val_dataset
@@ -78,7 +90,8 @@ def main(cfg: DictConfig):
         shuffle=True,
         num_workers=cfg.train.num_workers,
         pin_memory=True,
-        drop_last=True
+        drop_last=True,
+        collate_fn=detection_collate_fn 
     )
 
     val_loader = None
@@ -89,15 +102,35 @@ def main(cfg: DictConfig):
             shuffle=False,
             num_workers=cfg.train.num_workers,
             pin_memory=True,
-            drop_last=True
+            drop_last=True,
+            collate_fn=detection_collate_fn
         )
 
-    model = SimpleCNN(num_classes=cfg.model.num_classes).to(device) # Just for Test, need to be replaced later
-    criterion = FocalLoss(gamma=2.0) # Just for Test, need to be replaced later
+    logger.info("Initializing TreeDetector...")
+    model = TreeDetector(
+        device=device,
+        num_classes=cfg.model.num_classes,
+        fusion_channels=256
+    ).to(device)
+    
+    criterion = FCOSLoss(
+        strides=[4, 8, 16],
+        sparse_ignore_threshold=0.5
+    ).to(device)
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.lr)
 
+    from src.trainer.trainer import Trainer
+    trainer = Trainer(
+        model=model,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=device,
+        pth_savepath=cfg.paths.save_dir,
+        wandb_run=wandb if cfg.wandb.use else None
+    )
     
-    
+    trainer.fit(train_loader, cfg.train.epochs, val_loader)
 
 if __name__ == "__main__":
     main()

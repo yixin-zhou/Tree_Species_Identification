@@ -2,38 +2,39 @@ seed: 42
 
 wandb:
   use: True
-  entity: "yixinzhou-ethz"
+  entity: yixinzhou_ethz
   project: "Tree Species Identification"
-  name: "test run"
+  name: "FCOS_Res300_Run1"
   key: 78ca1f862ad9d2da640d58d1d18e1162a9358659
 
 device: "auto"
 
+paths:
+  save_dir: "results/checkpoints"
+
 data:
-  folder: "data/TreeAI_Swiss_60/"
-  image_mask: True
-  image_normalized: True
-  s1_unit: "db"
-  s2_mask: True
-  s2_fill: 0
-  vhm_compute_method: "minus"
-  vhm_vormalized: True
-  sentinel_timestamp: "monthly"
+  dataset:
+    folder: "data/TreeAI_Swiss_60/splits"
+    target_size: [300, 300]
+    s1_unit: "db"
+    s2_fill: 0
+    vhm_compute_method: "minus"
+    sentinel_timestamp: "monthly"
 
 train:
   validation: True
-  batch_size: 4
+  batch_size: 16
   num_workers: 4
-  max_epochs: 10
-  lr: 1e-4
+  epochs: 200
+  lr: 1e-3
 
 loss:
-  gamma: 2.0
+  sparse_ignore_threshold: 0.3
 
 model:
-    num_classes: 12
+  num_classes: 12
+  fusion_channels: 256
 
 hydra:
   run:
     dir: logs/${now:%Y-%m-%d}/${now:%H-%M-%S}
-

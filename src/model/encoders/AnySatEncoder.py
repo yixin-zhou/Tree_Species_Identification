@@ -36,8 +36,8 @@ class AnySatEncoder(nn.Module):
 
         data = {
             "aerial": aerial,
-            "s1": s1,
-            "s1_dates": sent_dates,
+            "s1-asc": s1,
+            "s1-asc_dates": sent_dates,
             "s2": s2,
             "s2_dates": sent_dates,
         }
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     B = 4   # batch size
 
     s2_images = torch.randn(B, 4, 10, 6, 6).float().to(device)
-    s1_images = torch.randn(B, 4, 3, 6, 6).float().to(device)
+    s1_images = torch.randn(B, 4, 2, 6, 6).float().to(device)
     aerial_images = torch.randn(B, 4, 300, 300).float().to(device)
 
     model = AnySatEncoder(device=device)
