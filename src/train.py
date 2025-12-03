@@ -126,7 +126,9 @@ def main(cfg: DictConfig):
         criterion=criterion,
         optimizer=optimizer,
         device=device,
-        pth_savepath=cfg.paths.save_dir,
+        # Make sure checkpoints are always saved under the project root,
+        # not inside Hydra's per-run working directory.
+        pth_savepath=to_absolute_path(cfg.paths.save_dir),
         wandb_run=wandb if cfg.wandb.use else None
     )
     

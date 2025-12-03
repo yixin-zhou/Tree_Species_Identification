@@ -35,6 +35,7 @@ model:
   num_classes: 12
   fusion_channels: 256
 
+checkpoint_path: "results/checkpoints/last_model.pth"
 hydra:
   run:
     dir: logs/${now:%Y-%m-%d}/${now:%H-%M-%S}
