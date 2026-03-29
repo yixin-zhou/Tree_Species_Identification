@@ -1,4 +1,4 @@
-# Tree Species Identification
+# Tree Species Identification using Deep Learning
 
 This repository contains the main project documents for the Tree Species Identification project.
 
